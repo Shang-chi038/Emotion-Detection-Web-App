@@ -1,0 +1,3 @@
+Flask>=2.2.0
+Werkzeug>=2.2.0
+# Add your model dependencies later (example: deepface, tensorflow, fer, etc.)
