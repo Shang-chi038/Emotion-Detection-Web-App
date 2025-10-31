@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Emotion Detector — Web App</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="container">
+            <h1>Emotion Detectoion App</h1>
+
+            <form action="{{ url_for('analyze') }}" method="POST" enctype="multipart/form-data">
+                <label for="image">Choose an image or capture live:</label>
+                <input type="file" name="image" accept="image/*;capture=camera" required>
+                <button type="submit" disabled>Analyze Image</button>
+            </form>
+            {% if image_url %}
+                <h2>Result</h2>
+                <img src="{{ image_url }}" alt="Uploaded Image" class="preview">
+                <h3>Dominant Emotion: {{ dominant }}</h3>
+                <ul>
+                    {% for emotion, value in emotions.items() %}
+                        <li>{{ emotion }}: {{ value }}%</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    </body>
+</html>
