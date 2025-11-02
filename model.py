@@ -1,12 +1,23 @@
 from deepface import DeepFace
 import cv2
+import os
 
 # Define the 7 emotions we want to detect
 VALID_EMOTIONS = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
 
+def load_model():
+    """
+    Initialize the DeepFace model.
+    The model is loaded automatically when DeepFace.analyze() is first called.
+    This function documents the model loading process.
+    """
+    print("Using DeepFace pretrained emotion detection model")
+    print(f"Supported emotions: {VALID_EMOTIONS}")
+    return True
+
 def predict_emotion(image_path):
     """
-    Predict emotion from an image using DeepFace
+    Predict emotion from an image using DeepFace pretrained model
     
     Args:
         image_path: Path to the image file
@@ -15,12 +26,12 @@ def predict_emotion(image_path):
         Predicted emotion as string
     """
     try:
-        # Analyze the image
+        # Analyze the image using DeepFace's pretrained model
         result = DeepFace.analyze(
             img_path=image_path,
             actions=['emotion'],
-            enforce_detection=False,
-            detector_backend='opencv'
+            enforce_detection=False,  # Don't fail if no face detected
+            detector_backend='opencv'  # Use OpenCV for face detection
         )
         
         # DeepFace returns a list if multiple faces, or dict if single face
@@ -31,7 +42,7 @@ def predict_emotion(image_path):
         emotions = result['emotion']
         dominant_emotion = result['dominant_emotion']
         
-        # Map 'angry' to 'anger' and handle 'contempt' (not in DeepFace default)
+        # Map DeepFace emotions to required format
         emotion_mapping = {
             'angry': 'anger',
             'happy': 'happiness',
@@ -40,11 +51,16 @@ def predict_emotion(image_path):
         
         dominant_emotion = emotion_mapping.get(dominant_emotion, dominant_emotion)
         
-        # Note: DeepFace doesn't have 'contempt' by default
-        # You might need to train a custom model or use neutral as fallback
+        # Note: 'contempt' is not in DeepFace's default emotions
+        # Using 'neutral' as closest alternative
         
         return dominant_emotion
         
     except Exception as e:
         print(f"Error in emotion prediction: {str(e)}")
         return "error"
+
+# Initialize model on module import
+if __name__ == "__main__":
+    load_model()
+    print("Model ready for predictions")
