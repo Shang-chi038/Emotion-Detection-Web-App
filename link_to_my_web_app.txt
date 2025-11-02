@@ -1,4 +1,2 @@
-hosting_platform -- your_deployment_link_here
-
-Example:
-Render -- https://your-app-name.onrender.com
+hosting_platform -- Render
+Render -- https://ezeifedigbo-obiora-23cg034072-emotion.onrender.com
