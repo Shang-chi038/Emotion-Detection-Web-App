@@ -1,8 +1,8 @@
 Flask==3.0.0
 deepface==0.0.79
 opencv-python-headless==4.8.1.78
-tensorflow==2.17.0
+tensorflow==2.16.1
 Pillow==10.1.0
 numpy==1.26.4
 gunicorn==21.2.0
-protobuf==3.20.3
+protobuf==4.25.3
