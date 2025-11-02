@@ -1,30 +1,209 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Emotion Detector — Web App</title>
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    </head>
-    <body>
-        <div class="container">
-            <h1>Emotion Detectoion App</h1>
-
-            <form action="{{ url_for('analyze') }}" method="POST" enctype="multipart/form-data">
-                <label for="image">Choose an image or capture live:</label>
-                <input type="file" name="image" accept="image/*;capture=camera" required>
-                <button type="submit" disabled>Analyze Image</button>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Detection App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Emotion Detection Web App</h1>
+        <p>Detect emotions from images or live webcam</p>
+        
+        <div class="form-container">
+            <form id="emotionForm">
+                <div class="form-group">
+                    <label for="name">Your Name:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Select Input Method:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="inputMethod" value="upload" checked>
+                            Upload Image
+                        </label>
+                        <label>
+                            <input type="radio" name="inputMethod" value="webcam">
+                            Use Webcam
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- File Upload Section -->
+                <div id="uploadSection" class="form-group">
+                    <label for="fileInput">Choose Image:</label>
+                    <input type="file" id="fileInput" name="file" accept="image/*">
+                </div>
+                
+                <!-- Webcam Section -->
+                <div id="webcamSection" class="form-group" style="display: none;">
+                    <video id="video" autoplay></video>
+                    <button type="button" id="captureBtn">Capture Photo</button>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <img id="capturedImage" style="display: none;">
+                </div>
+                
+                <button type="submit" id="submitBtn">Predict Emotion</button>
             </form>
-            {% if image_url %}
+            
+            <div id="result" class="result" style="display: none;">
                 <h2>Result</h2>
-                <img src="{{ image_url }}" alt="Uploaded Image" class="preview">
-                <h3>Dominant Emotion: {{ dominant }}</h3>
-                <ul>
-                    {% for emotion, value in emotions.items() %}
-                        <li>{{ emotion }}: {{ value }}%</li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
+                <p><strong>Name:</strong> <span id="resultName"></span></p>
+                <p><strong>Emotion:</strong> <span id="resultEmotion"></span></p>
+                <p><strong>Time:</strong> <span id="resultTime"></span></p>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <p>Processing...</p>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
         </div>
-    </body>
+    </div>
+    
+    <script>
+        // DOM elements
+        const form = document.getElementById('emotionForm');
+        const uploadSection = document.getElementById('uploadSection');
+        const webcamSection = document.getElementById('webcamSection');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const capturedImage = document.getElementById('capturedImage');
+        const result = document.getElementById('result');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        
+        let stream = null;
+        let capturedImageData = null;
+        
+        // Toggle between upload and webcam
+        document.querySelectorAll('input[name="inputMethod"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'upload') {
+                    uploadSection.style.display = 'block';
+                    webcamSection.style.display = 'none';
+                    stopWebcam();
+                } else {
+                    uploadSection.style.display = 'none';
+                    webcamSection.style.display = 'block';
+                    startWebcam();
+                }
+            });
+        });
+        
+        // Start webcam
+        async function startWebcam() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (err) {
+                showError('Could not access webcam: ' + err.message);
+            }
+        }
+        
+        // Stop webcam
+        function stopWebcam() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+        }
+        
+        // Capture photo from webcam
+        captureBtn.addEventListener('click', function() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            capturedImageData = canvas.toDataURL('image/jpeg');
+            capturedImage.src = capturedImageData;
+            capturedImage.style.display = 'block';
+            video.style.display = 'none';
+            captureBtn.textContent = 'Retake Photo';
+            captureBtn.onclick = function() {
+                video.style.display = 'block';
+                capturedImage.style.display = 'none';
+                captureBtn.textContent = 'Capture Photo';
+                capturedImageData = null;
+            };
+        });
+        
+        // Form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const inputMethod = document.querySelector('input[name="inputMethod"]:checked').value;
+            
+            // Validate inputs
+            if (!name) {
+                showError('Please enter your name');
+                return;
+            }
+            
+            if (inputMethod === 'webcam' && !capturedImageData) {
+                showError('Please capture a photo first');
+                return;
+            }
+            
+            if (inputMethod === 'upload' && !document.getElementById('fileInput').files[0]) {
+                showError('Please select an image file');
+                return;
+            }
+            
+            // Show loading
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            error.style.display = 'none';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('source', inputMethod);
+            
+            if (inputMethod === 'upload') {
+                formData.append('file', document.getElementById('fileInput').files[0]);
+            } else {
+                formData.append('image', capturedImageData);
+            }
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('resultName').textContent = data.name;
+                    document.getElementById('resultEmotion').textContent = data.emotion.toUpperCase();
+                    document.getElementById('resultTime').textContent = data.timestamp;
+                    result.style.display = 'block';
+                } else {
+                    showError(data.error || 'Prediction failed');
+                }
+            } catch (err) {
+                showError('Error: ' + err.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+        
+        function showError(message) {
+            error.textContent = message;
+            error.style.display = 'block';
+            setTimeout(() => {
+                error.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', stopWebcam);
+    </script>
+</body>
 </html>

@@ -1,69 +1,98 @@
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, jsonify
+import sqlite3
 import os
-import uuid
-
-
-# Import model integration function (stub for now)
-try:
-    from model_integration import predict_emotions
-    MODEL_AVAILABLE = True
-except Exception:
-    MODEL_AVAILABLE = False
-
+from datetime import datetime
+import base64
+# from werkzeug.utils import secure_filename
+# from model import predict_emotion
+# import cv2
+# import numpy as np
+from PIL import Image
+import io
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Create uploads folder if it doesn't exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Initialize database
+def init_db():
+    conn = sqlite3.connect('emotions.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS predictions
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT NOT NULL,
+                  timestamp TEXT NOT NULL,
+                  image_path TEXT NOT NULL,
+                  predicted_emotion TEXT NOT NULL)''')
+    conn.commit()
+    conn.close()
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
+init_db()
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'image' not in request.files:
-        return redirect(url_for('index'))
-    file = request.files['image']
-    if file.filename == '' or not allowed_file(file.filename):
-        return redirect(url_for('index'))
-
-
-    filename = secure_filename(file.filename)
-    filename = f"{uuid.uuid4().hex}_{filename}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
-
-    # Mock prediction or real model call
-    if MODEL_AVAILABLE:
-        dominant, emotions = predict_emotions(filepath)
-    else:
-        emotions = {
-        'happy': 45.0,
-        'sad': 20.0,
-        'neutral': 25.0,
-        'angry': 10.0
-        }
-        dominant = max(emotions, key=emotions.get)
-
-
-    return render_template('index.html', image_url=url_for('uploaded_file', filename=filename), 
-                           dominant=dominant, emotions=emotions)
-
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        name = request.form.get('name', 'Anonymous')
+        image_source = request.form.get('source')  # 'upload' or 'webcam'
+        
+        # Handle image based on source
+        if image_source == 'upload':
+            if 'file' not in request.files:
+                return jsonify({'error': 'No file uploaded'}), 400
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+        elif image_source == 'webcam':
+            # Get base64 image from webcam
+            image_data = request.form.get('image')
+            if not image_data:
+                return jsonify({'error': 'No webcam image provided'}), 400
+            
+            # Remove data URL prefix
+            image_data = image_data.split(',')[1]
+            image_bytes = base64.b64decode(image_data)
+            
+            # Convert to image
+            image = Image.open(io.BytesIO(image_bytes))
+            filename = f"webcam_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            image.save(filepath)
+        else:
+            return jsonify({'error': 'Invalid image source'}), 400
+        
+        # Predict emotion
+        emotion = predict_emotion(filepath)
+        
+        # Save to database
+        conn = sqlite3.connect('emotions.db')
+        c = conn.cursor()
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute("INSERT INTO predictions (name, timestamp, image_path, predicted_emotion) VALUES (?, ?, ?, ?)",
+                  (name, timestamp, filepath, emotion))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'emotion': emotion,
+            'name': name,
+            'timestamp': timestamp
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
