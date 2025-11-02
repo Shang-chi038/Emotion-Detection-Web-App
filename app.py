@@ -3,19 +3,22 @@ import sqlite3
 import os
 from datetime import datetime
 import base64
-# from werkzeug.utils import secure_filename
-# from model import predict_emotion
-# import cv2
-# import numpy as np
+from werkzeug.utils import secure_filename
+from model import predict_emotion
+import cv2
+import numpy as np
 from PIL import Image
 import io
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Create uploads folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Create static folder if it doesn't exist
+os.makedirs('static', exist_ok=True)
 
 # Initialize database
 def init_db():
@@ -47,10 +50,12 @@ def predict():
             if 'file' not in request.files:
                 return jsonify({'error': 'No file uploaded'}), 400
             file = request.files['file']
-            if file.filename == '':
+            if file.filename == '' or file.filename is None:
                 return jsonify({'error': 'No file selected'}), 400
             
-            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+            # Generate safe filename
+            original_filename = secure_filename(file.filename) if file.filename else 'image.jpg'
+            filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{original_filename}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
