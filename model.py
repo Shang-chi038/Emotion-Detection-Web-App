@@ -1,6 +1,10 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
+
 from deepface import DeepFace
 import cv2
-import os
+import warnings
+warnings.filterwarnings('ignore')
 
 # Define the 7 emotions we want to detect
 VALID_EMOTIONS = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']

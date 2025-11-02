@@ -1,6 +1,9 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN custom operations
+
 from flask import Flask, render_template, request, jsonify
 import sqlite3
-import os
 from datetime import datetime
 import base64
 from werkzeug.utils import secure_filename
